@@ -38,92 +38,114 @@ getProductsBySeach = (req, res) => {
         })
 }
 
-getProductById = (req, res) => {
+getProductById = async (req, res) => {
     const id = req.params['id'];
 
     var schema = {}
     var responses = [];
 
-    axios.get(`${config.url_ML_api_items}${id}`, {
-            method: 'get'
-        })
-        .then(respItem => {
+    const product = await getProduct(id);
 
-            schema = formatProduct(respItem);
+    console.log(product);
+    
 
-            
-            
-            
-            logger.info(`Request: ${config.url_ML_api_items}${id}, Result: ${JSON.stringify(respItem.data, undefined, 4)}`);
-            
-            
-            // Obtain currency 
-            var currency_id=schema.price.currency_id;
-            
-            schema = populateCurrency(currency_id, schema)
+    // axios.get(`${config.url_ML_api_items}${id}`, {
+    //         method: 'get'
+    //     })
+    //     .then(respItem => {
+
+    //         schema = formatProduct(respItem);
 
             
-            schema = populateDescription(id);
             
-            console.log(schema);
+            
+    //         logger.info(`Request: ${config.url_ML_api_items}${id}, Result: ${JSON.stringify(respItem.data, undefined, 4)}`);
+            
+            
+    //         // Obtain currency 
+    //         var currency_id=schema.price.currency_id;
+            
+    //         schema = populateCurrency(currency_id, schema)
 
-            // axios.get(`${config.url_ML_api_currencies}${currency_id}`, {
-            //     method: 'get'
-            // })
-            // .then(responseCurrency => {
-            //     schema = {
-            //         ...schema,
-            //         price: {
-            //             ...schema.price,
-            //             currency: responseCurrency.data.plain_text,
-            //             decimals: responseCurrency.data.decimal_places,
-            //             currency: responseCurrency.data.description,
-            //         }
-            //     }
+            
+    //         schema = populateDescription(id);
+            
+    //         console.log(schema);
+
+    //         // axios.get(`${config.url_ML_api_currencies}${currency_id}`, {
+    //         //     method: 'get'
+    //         // })
+    //         // .then(responseCurrency => {
+    //         //     schema = {
+    //         //         ...schema,
+    //         //         price: {
+    //         //             ...schema.price,
+    //         //             currency: responseCurrency.data.plain_text,
+    //         //             decimals: responseCurrency.data.decimal_places,
+    //         //             currency: responseCurrency.data.description,
+    //         //         }
+    //         //     }
                 
                 
-            //     console.log(schema);
+    //         //     console.log(schema);
 
-            //     logger.info(`Request: ${config.url_ML_api_currencies}${currency_id}, Result: ${JSON.stringify(responseCurrency.data, undefined, 4)}`);
+    //         //     logger.info(`Request: ${config.url_ML_api_currencies}${currency_id}, Result: ${JSON.stringify(responseCurrency.data, undefined, 4)}`);
 
-            // })
-            // .catch(err => {
-            //     logger.error(`${config.url_ML_api_currencies}${currency_id}, getProductById::currency error: ${err.message}`)
-            //     return res.status(500).send({
-            //         message: 'Server error'
-            //     })
-            // })
+    //         // })
+    //         // .catch(err => {
+    //         //     logger.error(`${config.url_ML_api_currencies}${currency_id}, getProductById::currency error: ${err.message}`)
+    //         //     return res.status(500).send({
+    //         //         message: 'Server error'
+    //         //     })
+    //         // })
 
-            // // Obtain description 
-            // axios.get(`${config.url_ML_api_items}${id}/description`, {
-            //         method: 'get'
-            //     })
-            //     .then(responseDescription => {
-            //         schema = {
-            //             ...schema,
-            //             item: {
-            //                 ...schema.item,
-            //                 description: responseDescription.data.plain_text
-            //             }
-            //         }
+    //         // // Obtain description 
+    //         // axios.get(`${config.url_ML_api_items}${id}/description`, {
+    //         //         method: 'get'
+    //         //     })
+    //         //     .then(responseDescription => {
+    //         //         schema = {
+    //         //             ...schema,
+    //         //             item: {
+    //         //                 ...schema.item,
+    //         //                 description: responseDescription.data.plain_text
+    //         //             }
+    //         //         }
 
-            //         logger.info(`Request: ${config.url_ML_api_items}${id}/description, Result: ${JSON.stringify(responseDescription.data, undefined, 4)}`);
-            //         return res.status(200).send(schema)
-            //     })
-            //     .catch(err => {
-            //         logger.error(`Request: ${config.url_ML_api_items}${id}/description, getProductById::description error: ${err.message}`)
-            //         return res.status(500).send({
-            //             message: 'Server error'
-            //         })
-            //     })
+    //         //         logger.info(`Request: ${config.url_ML_api_items}${id}/description, Result: ${JSON.stringify(responseDescription.data, undefined, 4)}`);
+    //         //         return res.status(200).send(schema)
+    //         //     })
+    //         //     .catch(err => {
+    //         //         logger.error(`Request: ${config.url_ML_api_items}${id}/description, getProductById::description error: ${err.message}`)
+    //         //         return res.status(500).send({
+    //         //             message: 'Server error'
+    //         //         })
+    //         //     })
 
-        })
-        .catch(err => {
-            logger.error(`Request: ${config.url_ML_api_items}${id}, getProductById error: ${err.message}`)
-            return res.status(500).send({
-                message: 'Server error'
-            })
-        })
+    //     })
+    //     .catch(err => {
+    //         logger.error(`Request: ${config.url_ML_api_items}${id}, getProductById error: ${err.message}`)
+    //         return res.status(500).send({
+    //             message: 'Server error'
+    //         })
+    //     })
+}
+
+const getProduct = async id => {
+    console.log(id);
+    
+    await axios.get(`${config.url_ML_api_items}${id}`, {
+        method: 'get'
+    })
+    .then(respItem => {
+
+        let schema = formatProduct(respItem);
+        schema = populateCurrency(respItem.data.currency_id, schema)
+
+        console.log(schema);
+        
+        
+        return schema})
 }
 
 const populateCurrency= async (currency_id, schema) => {
