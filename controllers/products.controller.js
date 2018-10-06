@@ -15,15 +15,21 @@ getProductsBySeach = async (req, res) => {
         var queryResult = await getProducts(req.query.q)
 
         var items = await queryResult.results.map(item => formatProduct(item).item)
+
         var categories = getCategories(queryResult);
+
+        var path_from_root = pathFromRoot(schema.path_from_root);
+
+        console.log(categories);
+
 
         var schema = {
             author: config.author,
             categories,
-            items
-            
+            items,
+            path_from_root
         }
-    }catch (err){
+    } catch (err) {
         logger.error(`Request: ${config.url_ML_api}search?q=${req.query.q}&limit=${config.limit_result}`, `getProductsBySearch error: ${err.message}`)
         return res.status(500).send({
             message: 'Server error'
@@ -34,9 +40,9 @@ getProductsBySeach = async (req, res) => {
 }
 
 const getProducts = async criteria => await axios.get(`${config.url_ML_api}search?q=${criteria}&limit=${config.limit_result}`, {
-    method: 'get',
-})
-.then(response => response.data)
+        method: 'get',
+    })
+    .then(response => response.data)
 
 // Get item in following format:
 // {
@@ -66,6 +72,9 @@ getProductById = async (req, res) => {
         var schema = await getProduct(id)
         var description = await obtainDescription(id)
         var currency = await obtainCurrency(schema.item.price.currency)
+        var category = await getCategoryById(schema.item.path_from_root)
+        console.log(schema.item);
+        
         schema = {
             author: config.author,
             ...schema,
@@ -78,16 +87,16 @@ getProductById = async (req, res) => {
                 },
                 description
             },
+            path_from_root: category.path_from_root
         }
-    } catch (err){
-        logger.error(`Request: ${config.url_ML_api_items}${id}`, `getProductById error: ${err.message}`)
-            return res.status(500).send({
-                message: 'Server error'
-            })
+    } catch (err) {
+        console.log(err.response.data);
+        
+        logger.error(`Request: ${config.url_ML_api_items}${id}`, `getProductById error: ${err.response.data.message}`)
+        return res.status(err.response.data.status).send({
+            message: `${err.response.data.message}`
+        })
     }
-
-    console.log(schema);
-    console.log(description);
 
     return res.status(200).send(schema)
 }
@@ -105,10 +114,12 @@ const formatProduct = respItem => schema = {
             currency: respItem.currency_id,
             amount: respItem.price,
         },
-        picture: respItem.picture?respItem.pictures[0].url:respItem.thumbnail,
+        picture: respItem.pictures ? respItem.pictures[0].url : respItem.thumbnail,
         condition: respItem.condition,
         free_shipping: respItem.shipping.free_shipping,
         sold_quantity: respItem.sold_quantity,
+        address_state: respItem.address ? respItem.address.state_name : respItem.seller_address.state.name,
+        path_from_root: respItem.category_id
     }
 }
 
@@ -122,11 +133,29 @@ const obtainCurrency = async currency_id => await axios.get(`${config.url_ML_api
     })
     .then(responseCurrency => responseCurrency.data)
 
- const getCategories = queryResult => {
-    let categoryFilter = queryResult.available_filters.filter(filter => filter.id === 'category')
-    let categories = categoryFilter.length !== 0 ? categoryFilter[0].values.map(category => category.name):{}
+const getCategoryById = async category_id => await axios.get(`${config.url_ML_api_categories}${category_id}`, {
+        method: 'get'
+    })
+    .then(response => response.data)
+
+const getCategories = queryResult => {
+    let categoryFilter = getCategoryOfAvailableFilters(queryResult)
+    let categories = categoryFilter.length !== 0 ? categoryFilter[0].values.map(category => category.name) : {}
     return categories;
- }
+}
+
+const pathFromRoot = queryResult => {
+    let categoryFilter = getCategoryOfFilters(queryResult)
+    return categoryFilter.length !== 0 ? categoryFilter[0].values.map(category => category.path_from_root) : {}
+}
+
+const getCategoryOfAvailableFilters = queryResult => {
+    return queryResult.available_filters.filter(filter => filter.id === 'category')
+}
+
+const getCategoryOfFilters = queryResult => {
+    return queryResult.filters.filter(filter => filter.id === 'category')
+}
 
 module.exports = {
     getProductsBySeach,

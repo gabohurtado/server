@@ -11,6 +11,7 @@ module.exports = {
     url_ML_api_items: `https://api.mercadolibre.com/items/`,
     url_ML_api_sellers: `https://api.mercadolibre.com/users/`,
     url_ML_api_currencies: `https://api.mercadolibre.com/currencies/`,
+    url_ML_api_categories: `https://api.mercadolibre.com/categories/`,
     limit_result: 4,
     logger: {
         appenders: {
