@@ -10,51 +10,74 @@ const log4js = require('log4js')
 log4js.configure(log4jsProperties.products)
 const logger = log4js.getLogger('products')
 
-getProductsBySeach = (req, res) => {
-    const criteria = req.query.q;
+getProductsBySeach = async (req, res) => {
+    try {
+        var queryResult = await getProducts(req.query.q)
 
-    axios.get(`${config.url_ML_api}search?q=${criteria}&limit=${config.limit_result}`, {
-            method: 'get',
-        })
-        .then(response => {
-            console.log(response.data);
+        var items = await queryResult.results.map(item => formatProduct(item).item)
+        var categories = getCategories(queryResult);
 
-            // schema = {
-            //         id: response.data.id,
-            //         title: response.data.title,
-            //         picture: response.data.pictures[0].url,
-            //         condition: response.data.condition,
-            //         price: response.data.price
-            //     }
+        var schema = {
+            author: config.author,
+            categories,
+            items
+            
+        }
+    }catch (err){
+        logger.error(`Request: ${config.url_ML_api}search?q=${req.query.q}&limit=${config.limit_result}`, `getProductsBySearch error: ${err.message}`)
+        return res.status(500).send({
+            message: 'Server error'
+        })
+    }
 
-            logger.info(`Request: ${config.url_ML_api}search?q=${criteria}&limit=${config.limit_result}&attributes=results`, `Result: ${JSON.stringify(response.data, undefined, 4)}`);
-            return res.status(200).send(response.data.results)
-        })
-        .catch(err => {
-            logger.error(`Request: ${config.url_ML_api}search?q=${criteria}&limit=${config.limit_result}&attributes=results`, `getProducts error: ${err.message}`)
-            return res.status(500).send({
-                message: 'Server error'
-            })
-        })
+    return res.status(200).send(schema)
 }
 
+const getProducts = async criteria => await axios.get(`${config.url_ML_api}search?q=${criteria}&limit=${config.limit_result}`, {
+    method: 'get',
+})
+.then(response => response.data)
+
+// Get item in following format:
+// {
+//     author: {
+//         name: String
+//         lastname: String
+//     },
+//     item: {
+//         id: String,
+//         title: String,
+//         price: {
+//             currency: String,
+//             amount: Number,
+//             decimals: Number,
+//         },
+//         picture: String,
+//         condition: String,
+//         free_shipping: Boolean,
+//         sold_quantity,
+//         Number
+//         description: String
+//     }
+// }
 getProductById = async (req, res) => {
     const id = req.params['id'];
     try {
         var schema = await getProduct(id)
         var description = await obtainDescription(id)
-        var currency = await obtainCurrency(schema.price.currency)
+        var currency = await obtainCurrency(schema.item.price.currency)
         schema = {
+            author: config.author,
             ...schema,
             item: {
                 ...schema.item,
+                price: {
+                    currency: currency.description,
+                    ...schema.item.price,
+                    decimals: currency.decimal_places
+                },
                 description
             },
-            price: {
-                ...schema.price,
-                currency: currency.description,
-                decimals: currency.decimal_places
-            }
         }
     } catch (err){
         logger.error(`Request: ${config.url_ML_api_items}${id}`, `getProductById error: ${err.message}`)
@@ -74,29 +97,21 @@ const getProduct = async id => await axios.get(`${config.url_ML_api_items}${id}`
     })
     .then(respItem => formatProduct(respItem.data))
 
-const formatProduct = respItem => {
-    let schema = {
-        author: config.author,
-        item: {
-            id: respItem.id,
-            title: respItem.title,
-            picture: respItem.pictures[0].url,
-            condition: respItem.condition,
-            free_shipping: respItem.shipping.free_shipping,
-            sold_quantity: respItem.sold_quantity,
-        },
+const formatProduct = respItem => schema = {
+    item: {
+        id: respItem.id,
+        title: respItem.title,
         price: {
+            currency: respItem.currency_id,
             amount: respItem.price,
-            currency: respItem.currency_id
-        }
+        },
+        picture: respItem.picture?respItem.pictures[0].url:respItem.thumbnail,
+        condition: respItem.condition,
+        free_shipping: respItem.shipping.free_shipping,
+        sold_quantity: respItem.sold_quantity,
     }
-
-    console.log(schema);
-
-
-    return schema
-
 }
+
 const obtainDescription = async id => await axios.get(`${config.url_ML_api_items}${id}/description`, {
         method: 'get'
     })
@@ -106,6 +121,12 @@ const obtainCurrency = async currency_id => await axios.get(`${config.url_ML_api
         method: 'get'
     })
     .then(responseCurrency => responseCurrency.data)
+
+ const getCategories = queryResult => {
+    let categoryFilter = queryResult.available_filters.filter(filter => filter.id === 'category')
+    let categories = categoryFilter.length !== 0 ? categoryFilter[0].values.map(category => category.name):{}
+    return categories;
+ }
 
 module.exports = {
     getProductsBySeach,
