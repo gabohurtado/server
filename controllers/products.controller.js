@@ -18,7 +18,7 @@ getProductsBySeach = (req, res) => {
         })
         .then(response => {
             console.log(response.data);
-            
+
             // schema = {
             //         id: response.data.id,
             //         title: response.data.title,
@@ -38,110 +38,74 @@ getProductsBySeach = (req, res) => {
         })
 }
 
-getProductById = (req, res) => {
+getProductById = async (req, res) => {
     const id = req.params['id'];
-
-    var schema = {}
-
-    axios.get(`${config.url_ML_api_items}${id}`, {
-            method: 'get'
-        })
-        .then(respItem => {
-
-            schema = formatProduct(respItem);
-
-            
-            
-            logger.info(`Request: ${config.url_ML_api_items}${id}, Result: ${JSON.stringify(respItem.data, undefined, 4)}`);
-            
-            
-            // Obtain currency 
-            var currency_id=schema.price.currency_id;
-
-            console.log(schema.price);
-            
-
-            axios.get(`${config.url_ML_api_currencies}${currency_id}`, {
-                method: 'get'
-            })
-            .then(responseCurrency => {
-                schema = {
-                    ...schema,
-                    price: {
-                        ...schema.price,
-                        currency: responseCurrency.data.plain_text,
-                        decimals: responseCurrency.data.decimal_places,
-                        currency: responseCurrency.data.description,
-                    }
-                }
-                
-                
-                console.log(schema);
-
-                logger.info(`Request: ${config.url_ML_api_currencies}${currency_id}, Result: ${JSON.stringify(responseCurrency.data, undefined, 4)}`);
-
-            })
-            .catch(err => {
-                logger.error(`${config.url_ML_api_currencies}${currency_id}, getProductById::currency error: ${err.message}`)
-                return res.status(500).send({
-                    message: 'Server error'
-                })
-            })
-
-            // Obtain description 
-            axios.get(`${config.url_ML_api_items}${id}/description`, {
-                    method: 'get'
-                })
-                .then(responseDescription => {
-                    schema = {
-                        ...schema,
-                        item: {
-                            ...schema.item,
-                            description: responseDescription.data.plain_text
-                        }
-                    }
-
-                    logger.info(`Request: ${config.url_ML_api_items}${id}/description, Result: ${JSON.stringify(responseDescription.data, undefined, 4)}`);
-                    return res.status(200).send(schema)
-                })
-                .catch(err => {
-                    logger.error(`Request: ${config.url_ML_api_items}${id}/description, getProductById::description error: ${err.message}`)
-                    return res.status(500).send({
-                        message: 'Server error'
-                    })
-                })
-
-        })
-        .catch(err => {
-            logger.error(`Request: ${config.url_ML_api_items}${id}, getProductById error: ${err.message}`)
+    try {
+        var schema = await getProduct(id)
+        var description = await obtainDescription(id)
+        var currency = await obtainCurrency(schema.price.currency)
+        schema = {
+            ...schema,
+            item: {
+                ...schema.item,
+                description
+            },
+            price: {
+                ...schema.price,
+                currency: currency.description,
+                decimals: currency.decimal_places
+            }
+        }
+    } catch (err){
+        logger.error(`Request: ${config.url_ML_api_items}${id}`, `getProductById error: ${err.message}`)
             return res.status(500).send({
                 message: 'Server error'
             })
-        })
+    }
+
+    console.log(schema);
+    console.log(description);
+
+    return res.status(200).send(schema)
 }
 
-const formatProduct = respItem => {
-    let  schema = {};
+const getProduct = async id => await axios.get(`${config.url_ML_api_items}${id}`, {
+        method: 'get'
+    })
+    .then(respItem => formatProduct(respItem.data))
 
-    schema = {
+const formatProduct = respItem => {
+    let schema = {
         author: config.author,
         item: {
-            id: respItem.data.id,
-            title: respItem.data.title,
-            picture: respItem.data.pictures[0].url,
-            condition: respItem.data.condition,
-            free_shipping: respItem.data.shipping.free_shipping,
-            sold_quantity: respItem.data.sold_quantity,
+            id: respItem.id,
+            title: respItem.title,
+            picture: respItem.pictures[0].url,
+            condition: respItem.condition,
+            free_shipping: respItem.shipping.free_shipping,
+            sold_quantity: respItem.sold_quantity,
         },
         price: {
-            amount: respItem.data.price,
-            currency_id: respItem.data.currency_id
+            amount: respItem.price,
+            currency: respItem.currency_id
         }
     }
+
+    console.log(schema);
+
 
     return schema
 
 }
+const obtainDescription = async id => await axios.get(`${config.url_ML_api_items}${id}/description`, {
+        method: 'get'
+    })
+    .then(responseDescription => responseDescription.data.plain_text)
+
+const obtainCurrency = async currency_id => await axios.get(`${config.url_ML_api_currencies}${currency_id}`, {
+        method: 'get'
+    })
+    .then(responseCurrency => responseCurrency.data)
 
 module.exports = {
     getProductsBySeach,
