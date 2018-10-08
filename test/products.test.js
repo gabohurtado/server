@@ -18,10 +18,10 @@ describe('Products API Integration Test', function(){
             })
         })
 
-        it('should get an array', function(done){
+        it('should get an object', function(done){
             request(app).get(`/api/items/search?q=test`)
             .end(function(err, res){
-                expect(res.body).to.be.an('array')
+                expect(res.body).to.be.an('object')
                 done()
             })
         })
@@ -29,7 +29,7 @@ describe('Products API Integration Test', function(){
         it('should get most 4 items', function(done){
             request(app).get(`/api/items/search?q=test`)
             .end(function(err, res){
-                expect(res.body.length).to.be.most(4)
+                expect(res.body.items.length).to.be.most(4)
                 done()
             })
         })
@@ -57,7 +57,7 @@ describe('Products API Integration Test', function(){
         it('should have all properties', function(done){
             request(app).get(`/api/items/MLA672691704`)
             .end(function(err, res){
-                expect(res.body).to.include.all.keys('item', 'price', 'author');
+                expect(res.body).to.include.all.keys('author', 'item','path_from_root' );
                 done()
             })
         })
@@ -65,7 +65,7 @@ describe('Products API Integration Test', function(){
         it('item should have all properties', function(done){
             request(app).get(`/api/items/MLA672691704`)
             .end(function(err, res){
-                expect(res.body.item).to.include.all.keys('id', 'title', 'picture', 'condition', 'free_shipping', 'sold_quantity');
+                expect(res.body.item).to.include.all.keys('id', 'title', 'price', 'picture', 'condition', 'free_shipping', 'sold_quantity', 'address_state','description');
                 done()
             })
         })
@@ -73,19 +73,19 @@ describe('Products API Integration Test', function(){
         it('price should have all properties', function(done){
             request(app).get(`/api/items/MLA672691704`)
             .end(function(err, res){
-                expect(res.body.price).to.include.all.keys('amount');
+                expect(res.body.item.price).to.include.all.keys('currency','amount','decimals');
                 done()
             })
         })
 
         // TODO: traer las propiedades de author name y lastname
-        // it('author should have all properties', function(done){
-        //     request(app).get(`/api/items/MLA672691704`)
-        //     .end(function(err, res){
-        //         expect(res.body.author).to.include.all.keys('name', 'lastname');
-        //         done()
-        //     })
-        // })
+        it('author should have all properties', function(done){
+            request(app).get(`/api/items/MLA672691704`)
+            .end(function(err, res){
+                expect(res.body.author).to.include.all.keys('name', 'lastname');
+                done()
+            })
+        })
 
     })
 

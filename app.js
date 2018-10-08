@@ -1,6 +1,17 @@
 var log4js = require('log4js');
 const express = require('express');
+var fs = require('fs');
 const app = express();
+
+var http = require('http');
+var https = require('https');
+var privateKey  = fs.readFileSync('sslcert/server.key', 'utf8');
+var certificate = fs.readFileSync('sslcert/server.crt', 'utf8');
+
+var credentials = {key: privateKey, cert: certificate};
+
+var httpServer = http.createServer(app);
+var httpsServer = https.createServer(credentials, app);
 
 var log = log4js.getLogger('app');
 
@@ -13,7 +24,7 @@ const api = require('./routes/items.router')
 
 app.use(function (req, res, next) {
     // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+    res.setHeader('Access-Control-Allow-Origin', 'https://127.0.0.1:3000');
     // Request methods you wish to allow
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
     // Request headers you wish to allow
@@ -82,7 +93,9 @@ try {
   }
 
 
-app.listen(config.port, () => {
+// httpServer.listen(8080);
+// httpsServer.listen(3001);
+httpsServer.listen(config.port, () => {
     log.info(`API Server MLA in http://localhost:${config.port}`)
 });
 

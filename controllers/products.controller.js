@@ -14,25 +14,22 @@ getProductsBySeach = async (req, res) => {
     try {
         var queryResult = await getProducts(req.query.q)
 
-        var items = await queryResult.results.map(item => formatProduct(item).item)
+        var items = queryResult.results.map(item => formatProduct(item).item)
 
         var categories = getCategories(queryResult);
 
-        var path_from_root = pathFromRoot(schema.path_from_root);
-
-        console.log(categories);
-
+        var path_from_root = pathFromRoot(queryResult);
 
         var schema = {
             author: config.author,
             categories,
             items,
-            path_from_root
+            path_from_root: path_from_root[0]
         }
     } catch (err) {
-        logger.error(`Request: ${config.url_ML_api}search?q=${req.query.q}&limit=${config.limit_result}`, `getProductsBySearch error: ${err.message}`)
-        return res.status(500).send({
-            message: 'Server error'
+        logger.error(`Request: ${config.url_ML_api}search?q=${req.query.q}&limit=${config.limit_result}`, `getProductsBySearch error: ${err.response.data.message}`)
+        return res.status(err.response.data.status).send({
+            message: `${err.response.data.message}`
         })
     }
 
@@ -44,67 +41,47 @@ const getProducts = async criteria => await axios.get(`${config.url_ML_api}searc
     })
     .then(response => response.data)
 
-// Get item in following format:
-// {
-//     author: {
-//         name: String
-//         lastname: String
-//     },
-//     item: {
-//         id: String,
-//         title: String,
-//         price: {
-//             currency: String,
-//             amount: Number,
-//             decimals: Number,
-//         },
-//         picture: String,
-//         condition: String,
-//         free_shipping: Boolean,
-//         sold_quantity,
-//         Number
-//         description: String
-//     }
-// }
-getProductById = async (req, res) => {
+const getProductById = async (req, res) => {
     const id = req.params['id'];
     try {
         var schema = await getProduct(id)
-        var description = await obtainDescription(id)
-        var currency = await obtainCurrency(schema.item.price.currency)
-        var category = await getCategoryById(schema.item.path_from_root)
-        console.log(schema.item);
+
+        axios.all([getCategoryById(schema.category_id),
+            await obtainCurrency(schema.currency_id)])
+            .then(axios.spread(function (category, currency) {
+                // Both requests are now complete
+                return res.status(200).send({
+                    author: config.author,
+                    item: {
+                        id: schema.id,
+                        title: schema.title,
+                        price: {
+                            currency: currency.description,
+                            amount: schema.price,
+                            decimals: currency.decimal_places
+                        },
+                        picture: schema.pictures ? schema.pictures[0].url : schema.thumbnail,
+                        condition: schema.condition,
+                        free_shipping: schema.shipping.free_shipping,
+                        sold_quantity: schema.sold_quantity,
+                        description: schema.description,
+                        address_state: schema.address ? schema.address.state_name : schema.seller_address.state.name,
+                    },
+                    path_from_root: category.path_from_root
+                })
+            }));
         
-        schema = {
-            author: config.author,
-            ...schema,
-            item: {
-                ...schema.item,
-                price: {
-                    currency: currency.description,
-                    ...schema.item.price,
-                    decimals: currency.decimal_places
-                },
-                description
-            },
-            path_from_root: category.path_from_root
-        }
     } catch (err) {
-        console.log(err.response.data);
-        
         logger.error(`Request: ${config.url_ML_api_items}${id}`, `getProductById error: ${err.response.data.message}`)
         return res.status(err.response.data.status).send({
             message: `${err.response.data.message}`
         })
     }
-
-    return res.status(200).send(schema)
 }
 
-const getProduct = async id => await axios.get(`${config.url_ML_api_items}${id}`, {
-        method: 'get'
-    })
-    .then(respItem => formatProduct(respItem.data))
+const getProduct = async id => await axios.all([axios.get(`${config.url_ML_api_items}${id}`), obtainDescription(id)]).then(axios.spread(function (schema, description) {
+    return {...schema.data,description: description}
+}))
 
 const formatProduct = respItem => schema = {
     item: {
